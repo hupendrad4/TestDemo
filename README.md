@@ -3,8 +3,6 @@
 A modern, full-featured test case management system for managing end-to-end testing lifecycle from requirement gathering to production deployment.
 
 ## Features
-
-### Core Features
 - ✅ **Test Case Management**: Create, organize, and version test cases with steps and preconditions
 - ✅ **Test Execution**: Execute tests across different cycles (smoke, sanity, regression)
 - ✅ **Requirements Management**: Track requirements and link to test cases
@@ -14,9 +12,9 @@ A modern, full-featured test case management system for managing end-to-end test
 - ✅ **User Management**: Role-based access control with authentication
 
 ### Integrations
-- 🔗 **Jira**: Sync stories, defects, and test cases
-- 🔗 **Azure DevOps**: Work item and test result synchronization
-- 🔗 **CI/CD**: API for automated test execution
+- **Jira**: Sync stories, defects, and test cases
+- **Azure DevOps**: Work item and test result synchronization
+- **CI/CD**: API for automated test execution
 
 ## Tech Stack
 
@@ -318,11 +316,6 @@ For issues and questions:
 - [ ] Real-time collaboration
 - [ ] Video recording of test execution
 
-## Credits
-
-Inspired by TestLink, Zephyr, TestRail, and Xray.
-
----
 
 **Version**: 1.0.0  
 **Last Updated**: January 2026
