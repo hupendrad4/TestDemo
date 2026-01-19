@@ -1,0 +1,975 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User Management
+model User {
+  id            String    @id @default(uuid())
+  username      String    @unique
+  email         String    @unique
+  passwordHash  String
+  firstName     String?
+  lastName      String?
+  role          UserRole  @default(TESTER)
+  isActive      Boolean   @default(true)
+  lastLoginAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  createdTestProjects    TestProject[]       @relation("ProjectCreator")
+  createdTestCases       TestCase[]          @relation("TestCaseCreator")
+  executedTests          TestExecution[]     @relation("TestExecutor")
+  createdDefects         Defect[]            @relation("DefectReporter")
+  assignedDefects        Defect[]            @relation("DefectAssignee")
+  createdRequirements    Requirement[]       @relation("RequirementCreator")
+  testPlanAssignments    TestPlanAssignment[]
+  comments               Comment[]
+  attachments            Attachment[]
+  projectMemberships     ProjectMember[]
+  createdSharedSteps     SharedStep[]        @relation("SharedStepCreator")
+  assignedRuns           TestRun[]           @relation("RunAssignee")
+  executedRunResults     TestRunResult[]     @relation("RunResultExecutor")
+  savedViews             SavedView[]         @relation("SavedViewCreator")
+  watchlistEntries       WatchlistEntry[]
+  notifications          Notification[]
+  auditLogs              AuditLog[]
+  createdReports         ReportTemplate[]    @relation("ReportCreator")
+  createdApiKeys         ApiKey[]            @relation("ApiKeyCreator")
+
+  @@map("users")
+}
+
+enum UserRole {
+  ADMIN
+  TEST_MANAGER
+  TESTER
+  DEVELOPER
+  VIEWER
+}
+
+// Test Project Management
+model TestProject {
+  id                String    @id @default(uuid())
+  name           String
+  prefix         String    @unique
+  description    String?
+  isActive       Boolean   @default(true)
+  isPublic       Boolean   @default(false)
+  createdById    String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Relations
+  createdBy          User              @relation("ProjectCreator", fields: [createdById], references: [id])
+  testSuites         TestSuite[]
+  testPlans          TestPlan[]
+  requirements       Requirement[]
+  requirementSpecs   RequirementSpec[]
+  customFields       CustomField[]
+  integrations       Integration[]
+  members            ProjectMember[]
+  sharedSteps        SharedStep[]
+  platforms          Platform[]
+  milestones         Milestone[]
+  reportTemplates    ReportTemplate[]
+  apiKeys            ApiKey[]
+  webhooks           WebhookSubscription[]
+
+  @@map("test_projects")
+}
+
+// Test Suite (Folder/Category)
+model TestSuite {
+  id                String    @id @default(uuid())
+  name           String
+  description    String?
+  parentId       String?
+  testProjectId  String
+  orderIndex     Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Relations
+  testProject    TestProject   @relation(fields: [testProjectId], references: [id], onDelete: Cascade)
+  parent         TestSuite?    @relation("TestSuiteHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children       TestSuite[]   @relation("TestSuiteHierarchy")
+  testCases      TestCase[]
+
+  @@map("test_suites")
+}
+
+// Test Case
+model TestCase {
+  id                 String            @id @default(uuid())
+  externalId         String
+  name               String
+  summary            String?           @db.Text
+  preconditions      String?           @db.Text
+  testSuiteId        String
+  createdById        String
+  version            Int               @default(1)
+  status             TestCaseStatus    @default(DRAFT)
+  priority           Priority          @default(MEDIUM)
+  executionType      ExecutionType     @default(MANUAL)
+  estimatedTime      Int?              // in minutes
+  isActive           Boolean           @default(true)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  // Relations
+  testSuite          TestSuite         @relation(fields: [testSuiteId], references: [id], onDelete: Cascade)
+  createdBy          User              @relation("TestCaseCreator", fields: [createdById], references: [id])
+  steps              TestStep[]
+  keywords           TestCaseKeyword[]
+  customFieldValues  CustomFieldValue[]
+  testPlanCases      TestPlanCase[]
+  requirements       TestCaseRequirement[]
+  executions         TestExecution[]
+  attachments        Attachment[]
+  sharedStepLinks    SharedStepLink[]
+  runResults         TestRunResult[]
+
+  @@unique([testSuiteId, externalId])
+  @@map("test_cases")
+}
+
+enum TestCaseStatus {
+  DRAFT
+  READY_FOR_REVIEW
+  APPROVED
+  DEPRECATED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ExecutionType {
+  MANUAL
+  AUTOMATED
+}
+
+// Test Step
+model TestStep {
+  id                String    @id @default(uuid())
+  testCaseId        String
+  stepNumber        Int
+  action            String    @db.Text
+  expectedResult    String    @db.Text
+  testData          String?   @db.Text
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // Relations
+  testCase          TestCase  @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+  stepExecutions    TestStepExecution[]
+
+  @@unique([testCaseId, stepNumber])
+  @@map("test_steps")
+}
+
+// Keywords/Tags
+model Keyword {
+  id          String            @id @default(uuid())
+  name        String            @unique
+  description String?
+  createdAt   DateTime          @default(now())
+
+  // Relations
+  testCases   TestCaseKeyword[]
+
+  @@map("keywords")
+}
+
+model TestCaseKeyword {
+  testCaseId  String
+  keywordId   String
+
+  testCase    TestCase  @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+  keyword     Keyword   @relation(fields: [keywordId], references: [id], onDelete: Cascade)
+
+  @@id([testCaseId, keywordId])
+  @@map("test_case_keywords")
+}
+
+// Test Plan Management
+model TestPlan {
+  id                String    @id @default(uuid())
+  name              String
+  description       String?   @db.Text
+  testProjectId     String
+  startDate         DateTime?
+  endDate           DateTime?
+  isActive          Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // Relations
+  testProject       TestProject           @relation(fields: [testProjectId], references: [id], onDelete: Cascade)
+  builds            Build[]
+  testCycles        TestCycle[]
+  testPlanCases     TestPlanCase[]
+  assignments       TestPlanAssignment[]
+  milestones        TestPlanMilestone[]
+  testRuns          TestRun[]
+
+  @@map("test_plans")
+}
+
+// Build/Release
+model Build {
+  id              String    @id @default(uuid())
+  name            String
+  description     String?
+  testPlanId      String
+  releaseDate     DateTime?
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  testPlan        TestPlan        @relation(fields: [testPlanId], references: [id], onDelete: Cascade)
+  executions      TestExecution[]
+  testRuns        TestRun[]
+
+  @@map("builds")
+}
+
+// Test Cycle (Smoke, Sanity, Regression, etc.)
+model TestCycle {
+  id              String        @id @default(uuid())
+  name            String
+  type            TestCycleType
+  description     String?
+  testPlanId      String
+  startDate       DateTime?
+  endDate         DateTime?
+  status          CycleStatus   @default(PLANNED)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Relations
+  testPlan        TestPlan      @relation(fields: [testPlanId], references: [id], onDelete: Cascade)
+  executions      TestExecution[]
+  testRuns        TestRun[]
+  testRuns        TestRun[]
+
+  @@map("test_cycles")
+}
+
+enum TestCycleType {
+  SMOKE
+  SANITY
+  REGRESSION
+  INTEGRATION
+  SYSTEM
+  UAT
+  CUSTOM
+}
+
+enum CycleStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+// Test Plan - Test Case Mapping
+model TestPlanCase {
+  id              String    @id @default(uuid())
+  testPlanId      String
+  testCaseId      String
+  orderIndex      Int       @default(0)
+  addedAt         DateTime  @default(now())
+
+  // Relations
+  testPlan        TestPlan  @relation(fields: [testPlanId], references: [id], onDelete: Cascade)
+  testCase        TestCase  @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+
+  @@unique([testPlanId, testCaseId])
+  @@map("test_plan_cases")
+}
+
+// Test Plan Assignment to Users
+model TestPlanAssignment {
+  id              String    @id @default(uuid())
+  testPlanId      String
+  userId          String
+  role            String    // "Lead", "Tester", "Reviewer"
+  assignedAt      DateTime  @default(now())
+
+  // Relations
+  testPlan        TestPlan  @relation(fields: [testPlanId], references: [id], onDelete: Cascade)
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([testPlanId, userId])
+  @@map("test_plan_assignments")
+}
+
+// Test Execution
+model TestExecution {
+  id                String            @id @default(uuid())
+  testCaseId        String
+  testCycleId       String
+  buildId           String
+  executedById      String
+  status            ExecutionStatus
+  executionTime     Int?              // in minutes
+  notes             String?           @db.Text
+  executedAt        DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  // Relations
+  testCase          TestCase          @relation(fields: [testCaseId], references: [id])
+  testCycle         TestCycle         @relation(fields: [testCycleId], references: [id])
+  build             Build             @relation(fields: [buildId], references: [id])
+  executedBy        User              @relation("TestExecutor", fields: [executedById], references: [id])
+  stepExecutions    TestStepExecution[]
+  defects           DefectExecution[]
+  attachments       Attachment[]
+  runResults        TestRunResult[]
+
+  @@map("test_executions")
+}
+
+enum ExecutionStatus {
+  PASSED
+  FAILED
+  BLOCKED
+  NOT_RUN
+  SKIPPED
+}
+
+// Test Step Execution
+model TestStepExecution {
+  id                String            @id @default(uuid())
+  testExecutionId   String
+  testStepId        String
+  status            ExecutionStatus
+  actualResult      String?           @db.Text
+  notes             String?           @db.Text
+  executedAt        DateTime          @default(now())
+
+  // Relations
+  testExecution     TestExecution     @relation(fields: [testExecutionId], references: [id], onDelete: Cascade)
+  testStep          TestStep          @relation(fields: [testStepId], references: [id])
+
+  @@map("test_step_executions")
+}
+
+// Requirements Management
+model RequirementSpec {
+  id                String        @id @default(uuid())
+  name              String
+  description       String?       @db.Text
+  testProjectId     String
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  // Relations
+  testProject       TestProject   @relation(fields: [testProjectId], references: [id], onDelete: Cascade)
+  requirements      Requirement[]
+
+  @@map("requirement_specs")
+}
+
+model Requirement {
+  id                  String        @id @default(uuid())
+  externalId          String
+  title               String
+  description         String?       @db.Text
+  requirementSpecId   String
+  testProjectId       String
+  createdById         String
+  status              ReqStatus     @default(DRAFT)
+  priority            Priority      @default(MEDIUM)
+  version             Int           @default(1)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  // Relations
+  requirementSpec     RequirementSpec @relation(fields: [requirementSpecId], references: [id], onDelete: Cascade)
+  testProject         TestProject     @relation(fields: [testProjectId], references: [id], onDelete: Cascade)
+  createdBy           User            @relation("RequirementCreator", fields: [createdById], references: [id])
+  testCases           TestCaseRequirement[]
+
+  @@unique([testProjectId, externalId])
+  @@map("requirements")
+}
+
+enum ReqStatus {
+  DRAFT
+  APPROVED
+  IMPLEMENTED
+  DEPRECATED
+}
+
+model TestCaseRequirement {
+  testCaseId      String
+  requirementId   String
+  linkedAt        DateTime  @default(now())
+
+  testCase        TestCase    @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+  requirement     Requirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+
+  @@id([testCaseId, requirementId])
+  @@map("test_case_requirements")
+}
+
+// Defect Management
+model Defect {
+  id                String        @id @default(uuid())
+  externalId        String        @unique
+  title             String
+  description       String        @db.Text
+  reportedById      String
+  assignedToId      String?
+  status            DefectStatus  @default(OPEN)
+  severity          Severity      @default(MEDIUM)
+  priority          Priority      @default(MEDIUM)
+  environment       String?
+  stepsToReproduce  String?       @db.Text
+  expectedBehavior  String?       @db.Text
+  actualBehavior    String?       @db.Text
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  resolvedAt        DateTime?
+
+  // Relations
+  reportedBy        User              @relation("DefectReporter", fields: [reportedById], references: [id])
+  assignedTo        User?             @relation("DefectAssignee", fields: [assignedToId], references: [id])
+  executions        DefectExecution[]
+  comments          Comment[]
+  attachments       Attachment[]
+
+  @@map("defects")
+}
+
+enum DefectStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+  REOPEN
+  REJECTED
+}
+
+enum Severity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+  BLOCKER
+}
+
+model DefectExecution {
+  defectId        String
+  executionId     String
+  linkedAt        DateTime  @default(now())
+
+  defect          Defect        @relation(fields: [defectId], references: [id], onDelete: Cascade)
+  execution       TestExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+
+  @@id([defectId, executionId])
+  @@map("defect_executions")
+}
+
+// Custom Fields
+model CustomField {
+  id                String              @id @default(uuid())
+  name              String
+  label             String
+  fieldType         CustomFieldType
+  testProjectId     String
+  isRequired        Boolean             @default(false)
+  defaultValue      String?
+  possibleValues    Json?               // For select/radio/checkbox
+  createdAt         DateTime            @default(now())
+
+  // Relations
+  testProject       TestProject         @relation(fields: [testProjectId], references: [id], onDelete: Cascade)
+  values            CustomFieldValue[]
+
+  @@unique([testProjectId, name])
+  @@map("custom_fields")
+}
+
+enum CustomFieldType {
+  TEXT
+  TEXTAREA
+  NUMBER
+  DATE
+  SELECT
+  MULTISELECT
+  CHECKBOX
+  RADIO
+}
+
+model CustomFieldValue {
+  id              String      @id @default(uuid())
+  customFieldId   String
+  testCaseId      String
+  value           String      @db.Text
+
+  // Relations
+  customField     CustomField @relation(fields: [customFieldId], references: [id], onDelete: Cascade)
+  testCase        TestCase    @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+
+  @@unique([customFieldId, testCaseId])
+  @@map("custom_field_values")
+}
+
+// Comments
+model Comment {
+  id          String    @id @default(uuid())
+  content     String    @db.Text
+  defectId    String?
+  userId      String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  defect      Defect?   @relation(fields: [defectId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id])
+
+  @@map("comments")
+}
+
+// Attachments
+model Attachment {
+  id              String    @id @default(uuid())
+  fileName        String
+  originalName    String
+  filePath        String
+  fileSize        Int
+  mimeType        String
+  testCaseId      String?
+  executionId     String?
+  defectId        String?
+  uploadedById    String
+  uploadedAt      DateTime  @default(now())
+
+  // Relations
+  testCase        TestCase?       @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+  execution       TestExecution?  @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  defect          Defect?         @relation(fields: [defectId], references: [id], onDelete: Cascade)
+  uploadedBy      User            @relation(fields: [uploadedById], references: [id])
+
+  @@map("attachments")
+}
+
+// Integrations
+model Integration {
+  id              String          @id @default(uuid())
+  type            IntegrationType
+  testProjectId   String
+  config          Json            // Store integration-specific config
+  isActive        Boolean         @default(true)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  // Relations
+  testProject     TestProject     @relation(fields: [testProjectId], references: [id], onDelete: Cascade)
+
+  @@unique([testProjectId, type])
+  @@map("integrations")
+}
+
+enum IntegrationType {
+  JIRA
+  AZURE_DEVOPS
+  GITHUB
+  GITLAB
+}
+
+// Project Memberships (map users to projects)
+model ProjectMember {
+  id             String      @id @default(uuid())
+  testProjectId  String
+  userId         String
+  role           String      @default("MEMBER")
+  createdAt      DateTime    @default(now())
+
+  // Relations
+  testProject    TestProject @relation(fields: [testProjectId], references: [id], onDelete: Cascade)
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([testProjectId, userId])
+  @@map("project_members")
+}
+
+// Shared Steps (Reusable test steps)
+model SharedStep {
+  id             String                @id @default(uuid())
+  name           String
+  description    String?               @db.Text
+  testProjectId  String
+  stepNumber     Int
+  action         String                @db.Text
+  expectedResult String                @db.Text
+  testData       String?               @db.Text
+  version        Int                   @default(1)
+  isActive       Boolean               @default(true)
+  createdById    String
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  // Relations
+  testProject    TestProject           @relation(fields: [testProjectId], references: [id], onDelete: Cascade)
+  createdBy      User                  @relation("SharedStepCreator", fields: [createdById], references: [id])
+  usedInCases    SharedStepLink[]
+
+  @@map("shared_steps")
+}
+
+model SharedStepLink {
+  id            String      @id @default(uuid())
+  testCaseId    String
+  sharedStepId  String
+  orderIndex    Int
+  linkedAt      DateTime    @default(now())
+
+  testCase      TestCase    @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+  sharedStep    SharedStep  @relation(fields: [sharedStepId], references: [id], onDelete: Cascade)
+
+  @@unique([testCaseId, sharedStepId, orderIndex])
+  @@map("shared_step_links")
+}
+
+// Platform & Configuration Management
+model Platform {
+  id             String                @id @default(uuid())
+  name           String
+  type           PlatformType
+  version        String?
+  testProjectId  String
+  isActive       Boolean               @default(true)
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  // Relations
+  testProject    TestProject           @relation(fields: [testProjectId], references: [id], onDelete: Cascade)
+  configurations Configuration[]
+  testRuns       TestRun[]
+
+  @@unique([testProjectId, name, type])
+  @@map("platforms")
+}
+
+enum PlatformType {
+  OS
+  BROWSER
+  DEVICE
+  ENVIRONMENT
+  CUSTOM
+}
+
+model Configuration {
+  id          String    @id @default(uuid())
+  platformId  String
+  key         String
+  value       String
+  createdAt   DateTime  @default(now())
+
+  platform    Platform  @relation(fields: [platformId], references: [id], onDelete: Cascade)
+
+  @@map("configurations")
+}
+
+// Milestones & Releases
+model Milestone {
+  id             String      @id @default(uuid())
+  name           String
+  description    String?     @db.Text
+  testProjectId  String
+  startDate      DateTime?
+  endDate        DateTime?
+  status         MilestoneStatus @default(PLANNED)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  // Relations
+  testProject    TestProject @relation(fields: [testProjectId], references: [id], onDelete: Cascade)
+  testPlans      TestPlanMilestone[]
+
+  @@map("milestones")
+}
+
+enum MilestoneStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model TestPlanMilestone {
+  testPlanId   String
+  milestoneId  String
+  linkedAt     DateTime  @default(now())
+
+  testPlan     TestPlan  @relation(fields: [testPlanId], references: [id], onDelete: Cascade)
+  milestone    Milestone @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+
+  @@id([testPlanId, milestoneId])
+  @@map("test_plan_milestones")
+}
+
+// Test Runs (Execution instances)
+model TestRun {
+  id              String          @id @default(uuid())
+  name            String
+  description     String?         @db.Text
+  testPlanId      String
+  testCycleId     String
+  buildId         String
+  platformId      String?
+  assignedToId    String?
+  status          RunStatus       @default(NOT_STARTED)
+  progress        Float           @default(0)
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  // Relations
+  testPlan        TestPlan        @relation(fields: [testPlanId], references: [id], onDelete: Cascade)
+  testCycle       TestCycle       @relation(fields: [testCycleId], references: [id], onDelete: Cascade)
+  build           Build           @relation(fields: [buildId], references: [id], onDelete: Cascade)
+  platform        Platform?       @relation(fields: [platformId], references: [id])
+  assignedTo      User?           @relation("RunAssignee", fields: [assignedToId], references: [id])
+  runResults      TestRunResult[]
+  watchers        WatchlistEntry[]
+
+  @@map("test_runs")
+}
+
+enum RunStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  PAUSED
+  CANCELLED
+}
+
+model TestRunResult {
+  id              String          @id @default(uuid())
+  testRunId       String
+  testCaseId      String
+  executionId     String?
+  status          ExecutionStatus @default(NOT_RUN)
+  executedById    String?
+  executedAt      DateTime?
+  timeSpent       Int?            // in seconds
+  notes           String?         @db.Text
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  // Relations
+  testRun         TestRun         @relation(fields: [testRunId], references: [id], onDelete: Cascade)
+  testCase        TestCase        @relation(fields: [testCaseId], references: [id])
+  execution       TestExecution?  @relation(fields: [executionId], references: [id])
+  executedBy      User?           @relation("RunResultExecutor", fields: [executedById], references: [id])
+
+  @@unique([testRunId, testCaseId])
+  @@map("test_run_results")
+}
+
+// Saved Views & Filters
+model SavedView {
+  id          String      @id @default(uuid())
+  name        String
+  description String?
+  entityType  EntityType
+  filters     Json        // Store filter criteria
+  columns     Json?       // Store column configuration
+  userId      String
+  isPublic    Boolean     @default(false)
+  isDefault   Boolean     @default(false)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  user        User        @relation("SavedViewCreator", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("saved_views")
+}
+
+enum EntityType {
+  TEST_CASE
+  TEST_SUITE
+  TEST_PLAN
+  TEST_RUN
+  REQUIREMENT
+  DEFECT
+  EXECUTION
+}
+
+// Watchlist (Star/Follow feature)
+model WatchlistEntry {
+  id          String      @id @default(uuid())
+  userId      String
+  entityType  EntityType
+  entityId    String
+  testRunId   String?     // For test runs
+  createdAt   DateTime    @default(now())
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  testRun     TestRun?    @relation(fields: [testRunId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, entityType, entityId])
+  @@map("watchlist_entries")
+}
+
+// Notifications
+model Notification {
+  id          String            @id @default(uuid())
+  userId      String
+  type        NotificationType
+  title       String
+  message     String            @db.Text
+  entityType  EntityType?
+  entityId    String?
+  isRead      Boolean           @default(false)
+  readAt      DateTime?
+  createdAt   DateTime          @default(now())
+
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+enum NotificationType {
+  MENTION
+  ASSIGNMENT
+  EXECUTION_FAILED
+  EXECUTION_PASSED
+  COMMENT
+  STATUS_CHANGE
+  DEADLINE
+  SYSTEM
+}
+
+// Audit Log
+model AuditLog {
+  id          String      @id @default(uuid())
+  userId      String?
+  action      String
+  entityType  EntityType
+  entityId    String
+  changes     Json?       // Store before/after values
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime    @default(now())
+
+  user        User?       @relation(fields: [userId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// Report Templates
+model ReportTemplate {
+  id             String      @id @default(uuid())
+  name           String
+  description    String?     @db.Text
+  type           ReportType
+  config         Json        // Store report configuration
+  testProjectId  String
+  createdById    String
+  isPublic       Boolean     @default(false)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  testProject    TestProject @relation(fields: [testProjectId], references: [id], onDelete: Cascade)
+  createdBy      User        @relation("ReportCreator", fields: [createdById], references: [id])
+  schedules      ScheduledReport[]
+
+  @@map("report_templates")
+}
+
+enum ReportType {
+  EXECUTION_SUMMARY
+  REQUIREMENT_COVERAGE
+  PLATFORM_BREAKDOWN
+  TREND_ANALYSIS
+  FLAKY_TESTS
+  AUTOMATION_PROGRESS
+  DEFECT_ANALYSIS
+  CUSTOM
+}
+
+model ScheduledReport {
+  id               String         @id @default(uuid())
+  reportTemplateId String
+  schedule         String         // Cron expression
+  recipients       String[]       // Email addresses
+  isActive         Boolean        @default(true)
+  lastRunAt        DateTime?
+  nextRunAt        DateTime?
+  createdAt        DateTime       @default(now())
+
+  reportTemplate   ReportTemplate @relation(fields: [reportTemplateId], references: [id], onDelete: Cascade)
+
+  @@map("scheduled_reports")
+}
+
+// Webhooks & API Keys
+model ApiKey {
+  id             String      @id @default(uuid())
+  name           String
+  key            String      @unique
+  testProjectId  String
+  createdById    String
+  permissions    Json        // Store permission scopes
+  expiresAt      DateTime?
+  lastUsedAt     DateTime?
+  isActive       Boolean     @default(true)
+  createdAt      DateTime    @default(now())
+
+  testProject    TestProject @relation(fields: [testProjectId], references: [id], onDelete: Cascade)
+  createdBy      User        @relation("ApiKeyCreator", fields: [createdById], references: [id])
+
+  @@map("api_keys")
+}
+
+model WebhookSubscription {
+  id             String        @id @default(uuid())
+  name           String
+  url            String
+  events         String[]      // Event types to subscribe to
+  testProjectId  String
+  secret         String?       // For signature verification
+  isActive       Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  testProject    TestProject   @relation(fields: [testProjectId], references: [id], onDelete: Cascade)
+  deliveries     WebhookDelivery[]
+
+  @@map("webhook_subscriptions")
+}
+
+model WebhookDelivery {
+  id                    String              @id @default(uuid())
+  webhookSubscriptionId String
+  event                 String
+  payload               Json
+  responseStatus        Int?
+  responseBody          String?             @db.Text
+  deliveredAt           DateTime            @default(now())
+  success               Boolean             @default(false)
+
+  subscription          WebhookSubscription @relation(fields: [webhookSubscriptionId], references: [id], onDelete: Cascade)
+
+  @@map("webhook_deliveries")
+}
