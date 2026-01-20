@@ -72,7 +72,7 @@ const Register: React.FC = () => {
             <img 
               src="/qualix.png" 
               alt="Qualix" 
-              style={{ height: '250px', width: 'auto', maxWidth: '100%', objectFit: 'contain' }}
+              style={{ height: '60px', width: 'auto' }}
             />
           </Box>
           <Typography variant="h6" align="center" color="textSecondary" gutterBottom>

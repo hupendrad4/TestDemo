@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
 import {
   Box,
@@ -85,7 +85,13 @@ const Dashboard: React.FC = () => {
   });
   const [recentExecutions, setRecentExecutions] = useState<any[]>([]);
 
-  const loadDashboardData = useCallback(async () => {
+  useEffect(() => {
+    if (currentProject?.id) {
+      loadDashboardData();
+    }
+  }, [currentProject?.id]);
+
+  const loadDashboardData = async () => {
     try {
       setLoading(true);
       const response = await reportService.getDashboard(currentProject!.id);
@@ -122,13 +128,7 @@ const Dashboard: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentProject]);
-
-  useEffect(() => {
-    if (currentProject?.id) {
-      loadDashboardData();
-    }
-  }, [currentProject?.id, loadDashboardData]);
+  };
 
   const statCards = [
     { 
@@ -258,13 +258,11 @@ const Dashboard: React.FC = () => {
 
   if (!currentProject) {
     return (
-      <Box sx={{ p: 3 }}>
+      <Box>
         <Alert severity="warning">Please select a project to view dashboard</Alert>
       </Box>
     );
   }
-
-  const hasData = stats.totalTestCases > 0 || stats.totalExecutions > 0;
 
   return (
     <Box>
@@ -273,12 +271,6 @@ const Dashboard: React.FC = () => {
       </Typography>
 
       {loading && <LinearProgress sx={{ mb: 2 }} />}
-
-      {!loading && !hasData && (
-        <Alert severity="info" sx={{ mb: 3 }}>
-          No test data available yet. Start by creating test cases and running executions to see analytics.
-        </Alert>
-      )}
 
       {/* Stats Cards */}
       <Grid container spacing={3} sx={{ mb: 3 }}>

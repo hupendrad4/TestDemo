@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
 import {
   Box,
@@ -83,9 +83,14 @@ const Dashboard: React.FC = () => {
     testCoverage: 0,
     automationRate: 0,
   });
-  const [recentExecutions, setRecentExecutions] = useState<any[]>([]);
 
-  const loadDashboardData = useCallback(async () => {
+  useEffect(() => {
+    if (currentProject?.id) {
+      loadDashboardData();
+    }
+  }, [currentProject?.id]);
+
+  const loadDashboardData = async () => {
     try {
       setLoading(true);
       const response = await reportService.getDashboard(currentProject!.id);
@@ -95,7 +100,6 @@ const Dashboard: React.FC = () => {
       const testCases = data.testCasesSummary || {};
       const executions = data.executionSummary || {};
       const coverage = data.requirementCoverage || {};
-      const recentRuns = data.recentTestRuns || [];
       
       setStats({
         totalTestCases: testCases.total || 0,
@@ -108,27 +112,12 @@ const Dashboard: React.FC = () => {
         testCoverage: coverage.coveragePercentage || 0,
         automationRate: parseFloat(testCases.automationPercentage || '0'),
       });
-      
-      // Map recent test runs to table format
-      setRecentExecutions(recentRuns.map((run: any) => ({
-        id: run.id,
-        name: run.testPlan?.name || 'N/A',
-        status: run.status || 'NOT_RUN',
-        executor: run.assignedTo ? `${run.assignedTo.firstName} ${run.assignedTo.lastName}` : 'Unassigned',
-        time: new Date(run.createdAt).toLocaleString(),
-      })));
     } catch (error) {
       console.error('Error loading dashboard:', error);
     } finally {
       setLoading(false);
     }
-  }, [currentProject]);
-
-  useEffect(() => {
-    if (currentProject?.id) {
-      loadDashboardData();
-    }
-  }, [currentProject?.id, loadDashboardData]);
+  };
 
   const statCards = [
     { 
@@ -244,27 +233,30 @@ const Dashboard: React.FC = () => {
     },
   };
 
+  const recentExecutions = [
+    { id: 'TC-001', name: 'User Login Test', status: 'Passed', executor: 'John Doe', time: '2 mins ago' },
+    { id: 'TC-045', name: 'Dashboard Load Test', status: 'Failed', executor: 'Jane Smith', time: '15 mins ago' },
+    { id: 'TC-089', name: 'API Integration Test', status: 'Passed', executor: 'Mike Johnson', time: '1 hour ago' },
+    { id: 'TC-112', name: 'Report Generation', status: 'Blocked', executor: 'Sarah Williams', time: '2 hours ago' },
+    { id: 'TC-156', name: 'Settings Update', status: 'Passed', executor: 'John Doe', time: '3 hours ago' },
+  ];
+
   const getStatusColor = (status: string) => {
-    const statusUpper = status.toUpperCase();
-    switch (statusUpper) {
-      case 'PASSED': return 'success';
-      case 'FAILED': return 'error';
-      case 'BLOCKED': return 'warning';
-      case 'COMPLETED': return 'success';
-      case 'IN_PROGRESS': return 'info';
+    switch (status) {
+      case 'Passed': return 'success';
+      case 'Failed': return 'error';
+      case 'Blocked': return 'warning';
       default: return 'default';
     }
   };
 
   if (!currentProject) {
     return (
-      <Box sx={{ p: 3 }}>
+      <Box>
         <Alert severity="warning">Please select a project to view dashboard</Alert>
       </Box>
     );
   }
-
-  const hasData = stats.totalTestCases > 0 || stats.totalExecutions > 0;
 
   return (
     <Box>
@@ -273,12 +265,6 @@ const Dashboard: React.FC = () => {
       </Typography>
 
       {loading && <LinearProgress sx={{ mb: 2 }} />}
-
-      {!loading && !hasData && (
-        <Alert severity="info" sx={{ mb: 3 }}>
-          No test data available yet. Start by creating test cases and running executions to see analytics.
-        </Alert>
-      )}
 
       {/* Stats Cards */}
       <Grid container spacing={3} sx={{ mb: 3 }}>
@@ -459,39 +445,29 @@ const Dashboard: React.FC = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {recentExecutions.length > 0 ? (
-                recentExecutions.map((execution) => (
-                  <TableRow key={execution.id} hover>
-                    <TableCell>
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        {execution.id}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>{execution.name}</TableCell>
-                    <TableCell>
-                      <Chip 
-                        label={execution.status} 
-                        size="small" 
-                        color={getStatusColor(execution.status) as any}
-                      />
-                    </TableCell>
-                    <TableCell>{execution.executor}</TableCell>
-                    <TableCell>
-                      <Typography variant="caption" color="textSecondary">
-                        {execution.time}
-                      </Typography>
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={5} align="center">
-                    <Typography variant="body2" color="textSecondary" sx={{ py: 2 }}>
-                      No recent test executions found
+              {recentExecutions.map((execution) => (
+                <TableRow key={execution.id} hover>
+                  <TableCell>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      {execution.id}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>{execution.name}</TableCell>
+                  <TableCell>
+                    <Chip 
+                      label={execution.status} 
+                      size="small" 
+                      color={getStatusColor(execution.status) as any}
+                    />
+                  </TableCell>
+                  <TableCell>{execution.executor}</TableCell>
+                  <TableCell>
+                    <Typography variant="caption" color="textSecondary">
+                      {execution.time}
                     </Typography>
                   </TableCell>
                 </TableRow>
-              )}
+              ))}
             </TableBody>
           </Table>
         </TableContainer>

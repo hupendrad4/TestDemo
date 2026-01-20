@@ -28,7 +28,7 @@ const AdminLogin: React.FC = () => {
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', bgcolor: 'background.default' }}>
       <Paper sx={{ p: 4, width: 400 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
           <img 
             src="/qualix.png" 
             alt="Qualix" 

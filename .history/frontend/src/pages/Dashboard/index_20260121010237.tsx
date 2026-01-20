@@ -129,6 +129,7 @@ const Dashboard: React.FC = () => {
       loadDashboardData();
     }
   }, [currentProject?.id, loadDashboardData]);
+  };
 
   const statCards = [
     { 

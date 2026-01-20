@@ -68,11 +68,11 @@ const Register: React.FC = () => {
         }}
       >
         <Paper elevation={3} sx={{ p: 4, width: '100%' }}>
-          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
             <img 
               src="/qualix.png" 
               alt="Qualix" 
-              style={{ height: '250px', width: 'auto', maxWidth: '100%', objectFit: 'contain' }}
+              style={{ height: '80px', width: 'auto', maxWidth: '250px', objectFit: 'contain' }}
             />
           </Box>
           <Typography variant="h6" align="center" color="textSecondary" gutterBottom>

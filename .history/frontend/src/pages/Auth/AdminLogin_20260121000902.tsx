@@ -28,11 +28,11 @@ const AdminLogin: React.FC = () => {
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', bgcolor: 'background.default' }}>
       <Paper sx={{ p: 4, width: 400 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
           <img 
             src="/qualix.png" 
             alt="Qualix" 
-            style={{ height: '250x', width: 'auto', maxWidth: '100%', objectFit: 'contain' }}
+            style={{ height: '50px', width: 'auto' }}
           />
         </Box>
         <Typography variant="h5" gutterBottom align="center">Admin Login</Typography>

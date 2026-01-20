@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link as RouterLink } from 'react-router-dom';
+import { useDispatch } from 'react-redux';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
 import {
@@ -14,45 +15,33 @@ import {
 } from '@mui/material';
 import { toast } from 'react-toastify';
 import authService from '../../services/auth.service';
+import { loginSuccess } from '../../store/slices/authSlice';
 
 const validationSchema = Yup.object({
-  firstName: Yup.string().required('First name is required'),
-  lastName: Yup.string().required('Last name is required'),
   email: Yup.string().email('Invalid email address').required('Email is required'),
-  password: Yup.string()
-    .min(8, 'Password must be at least 8 characters')
-    .required('Password is required'),
-  confirmPassword: Yup.string()
-    .oneOf([Yup.ref('password')], 'Passwords must match')
-    .required('Confirm password is required'),
+  password: Yup.string().required('Password is required'),
 });
 
-const Register: React.FC = () => {
+const Login: React.FC = () => {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const [error, setError] = useState('');
 
   const formik = useFormik({
     initialValues: {
-      firstName: '',
-      lastName: '',
       email: '',
       password: '',
-      confirmPassword: '',
     },
     validationSchema,
     onSubmit: async (values) => {
       try {
         setError('');
-        await authService.register({
-          firstName: values.firstName,
-          lastName: values.lastName,
-          email: values.email,
-          password: values.password,
-        });
-        toast.success('Registration successful! Please login.');
-        navigate('/login');
+        const response = await authService.login(values);
+        dispatch(loginSuccess(response.data));
+        toast.success('Login successful!');
+        navigate('/dashboard');
       } catch (err: any) {
-        setError(err.response?.data?.message || 'Registration failed');
+        setError(err.response?.data?.message || 'Login failed');
       }
     },
   });
@@ -68,16 +57,22 @@ const Register: React.FC = () => {
         }}
       >
         <Paper elevation={3} sx={{ p: 4, width: '100%' }}>
-          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
             <img 
               src="/qualix.png" 
               alt="Qualix" 
-              style={{ height: '250px', width: 'auto', maxWidth: '100%', objectFit: 'contain' }}
+              style={{ height: '200px', width: 'auto', maxWidth: '100%', objectFit: 'contain' }}
             />
           </Box>
           <Typography variant="h6" align="center" color="textSecondary" gutterBottom>
-            Create your account
+            Sign in to your account
           </Typography>
+
+          <Alert severity="info" sx={{ mt: 2 }}>
+            <Typography variant="body2">
+              Demo credentials: <strong>demo@example.com</strong> / <strong>Passw0rd!</strong>
+            </Typography>
+          </Alert>
 
           {error && (
             <Alert severity="error" sx={{ mt: 2 }}>
@@ -86,28 +81,6 @@ const Register: React.FC = () => {
           )}
 
           <Box component="form" onSubmit={formik.handleSubmit} sx={{ mt: 3 }}>
-            <TextField
-              fullWidth
-              id="firstName"
-              name="firstName"
-              label="First Name"
-              value={formik.values.firstName}
-              onChange={formik.handleChange}
-              error={formik.touched.firstName && Boolean(formik.errors.firstName)}
-              helperText={formik.touched.firstName && formik.errors.firstName}
-              margin="normal"
-            />
-            <TextField
-              fullWidth
-              id="lastName"
-              name="lastName"
-              label="Last Name"
-              value={formik.values.lastName}
-              onChange={formik.handleChange}
-              error={formik.touched.lastName && Boolean(formik.errors.lastName)}
-              helperText={formik.touched.lastName && formik.errors.lastName}
-              margin="normal"
-            />
             <TextField
               fullWidth
               id="email"
@@ -131,18 +104,6 @@ const Register: React.FC = () => {
               helperText={formik.touched.password && formik.errors.password}
               margin="normal"
             />
-            <TextField
-              fullWidth
-              id="confirmPassword"
-              name="confirmPassword"
-              label="Confirm Password"
-              type="password"
-              value={formik.values.confirmPassword}
-              onChange={formik.handleChange}
-              error={formik.touched.confirmPassword && Boolean(formik.errors.confirmPassword)}
-              helperText={formik.touched.confirmPassword && formik.errors.confirmPassword}
-              margin="normal"
-            />
             <Button
               type="submit"
               fullWidth
@@ -151,13 +112,19 @@ const Register: React.FC = () => {
               sx={{ mt: 3, mb: 2 }}
               disabled={formik.isSubmitting}
             >
-              {formik.isSubmitting ? 'Creating account...' : 'Sign Up'}
+              {formik.isSubmitting ? 'Signing in...' : 'Sign In'}
             </Button>
             <Box sx={{ textAlign: 'center' }}>
               <Typography variant="body2">
-                Already have an account?{' '}
-                <Link component={RouterLink} to="/login" underline="hover">
-                  Sign in
+                Don't have an account?{' '}
+                <Link component={RouterLink} to="/register" underline="hover">
+                  Sign up
+                </Link>
+              </Typography>
+              <Typography variant="body2" sx={{ mt: 1 }}>
+                Admin?{' '}
+                <Link component={RouterLink} to="/admin/login" underline="hover">
+                  Go to Admin Login
                 </Link>
               </Typography>
             </Box>
@@ -168,4 +135,4 @@ const Register: React.FC = () => {
   );
 };
 
-export default Register;
+export default Login;

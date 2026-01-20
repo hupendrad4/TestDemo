@@ -235,7 +235,7 @@ const Layout: React.FC = () => {
           <img 
             src="/qualix.png" 
             alt="Qualix" 
-            style={{ height: '150px', width: 'auto', maxWidth: '90%', objectFit: 'contain' }}
+            style={{ height: '100px', width: 'auto', maxWidth: '90%', objectFit: 'contain' }}
           />
         </Box>
       </Toolbar>

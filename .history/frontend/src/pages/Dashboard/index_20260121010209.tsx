@@ -85,7 +85,13 @@ const Dashboard: React.FC = () => {
   });
   const [recentExecutions, setRecentExecutions] = useState<any[]>([]);
 
-  const loadDashboardData = useCallback(async () => {
+  useEffect(() => {
+    if (currentProject?.id) {
+      loadDashboardData();
+    }
+  }, [currentProject?.id]);
+
+  const loadDashboardData = async () => {
     try {
       setLoading(true);
       const response = await reportService.getDashboard(currentProject!.id);
@@ -122,13 +128,7 @@ const Dashboard: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentProject]);
-
-  useEffect(() => {
-    if (currentProject?.id) {
-      loadDashboardData();
-    }
-  }, [currentProject?.id, loadDashboardData]);
+  };
 
   const statCards = [
     { 

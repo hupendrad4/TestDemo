@@ -230,12 +230,12 @@ const Layout: React.FC = () => {
 
   const drawer = (
     <Box>
-      <Toolbar sx={{ minHeight: '64px', height: '64px', py: 0.5 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', justifyContent: 'center' }}>
+      <Toolbar>
+        <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', justifyContent: 'center', py: 2 }}>
           <img 
             src="/qualix.png" 
             alt="Qualix" 
-            style={{ height: '150px', width: 'auto', maxWidth: '90%', objectFit: 'contain' }}
+            style={{ height: '70px', width: 'auto', maxWidth: '90%', objectFit: 'contain' }}
           />
         </Box>
       </Toolbar>
