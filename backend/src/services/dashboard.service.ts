@@ -16,6 +16,9 @@ export class DashboardService {
     // Requirements Coverage
     const requirementCoverage = await this.getRequirementCoverage(projectId);
 
+    // Defect Summary
+    const defectSummary = await this.getDefectSummary(projectId);
+
     // Recent Test Runs
     const recentTestRuns = await this.getRecentTestRuns(projectId, 5);
 
@@ -29,6 +32,7 @@ export class DashboardService {
       testCasesSummary,
       executionSummary,
       requirementCoverage,
+      defectSummary,
       recentTestRuns,
       trendData,
       riskMetrics,
@@ -173,6 +177,31 @@ export class DashboardService {
       covered: coveredRequirements,
       uncovered: totalRequirements - coveredRequirements,
       coveragePercentage: parseFloat(coveragePercentage),
+    };
+  }
+
+  /**
+   * Get defect summary
+   */
+  static async getDefectSummary(projectId: string) {
+    const defects = await prisma.defect.findMany({
+      where: { testProjectId: projectId },
+      select: { status: true, severity: true },
+    });
+
+    return {
+      total: defects.length,
+      open: defects.filter((d) => d.status === 'OPEN').length,
+      inProgress: defects.filter((d) => d.status === 'IN_PROGRESS').length,
+      resolved: defects.filter((d) => d.status === 'RESOLVED').length,
+      closed: defects.filter((d) => d.status === 'CLOSED').length,
+      bySeverity: {
+        critical: defects.filter((d) => d.severity === 'CRITICAL').length,
+        high: defects.filter((d) => d.severity === 'HIGH').length,
+        medium: defects.filter((d) => d.severity === 'MEDIUM').length,
+        low: defects.filter((d) => d.severity === 'LOW').length,
+        blocker: defects.filter((d) => d.severity === 'BLOCKER').length,
+      },
     };
   }
 

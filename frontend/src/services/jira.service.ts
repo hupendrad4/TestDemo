@@ -101,9 +101,9 @@ const jiraService = {
   },
 
   // Search Jira issues
-  async searchIssues(projectId: string, query: string) {
-    const response = await api.get(`/jira/issues/${projectId}/search`, {
-      params: { query },
+  async searchIssues(projectId: string, jql: string) {
+    const response = await api.get(`/jira/search/${projectId}`, {
+      params: { jql },
     });
     return response.data.data as JiraIssue[];
   },

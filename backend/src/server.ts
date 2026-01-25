@@ -38,6 +38,7 @@ import dashboardRoutes from './routes/dashboard.routes';
 import notificationRoutes from './routes/notification.routes';
 import searchRoutes from './routes/search.routes';
 import defectRoutes from './routes/defect.routes';
+import milestoneRoutes from './routes/milestone.routes';
 // New AI-powered and enhanced features
 import aiRoutes from './routes/ai.routes';
 import artifactRoutes from './routes/artifact.routes';
@@ -157,6 +158,7 @@ app.use(`${API_PREFIX}/test-cases`, testCaseRoutes);
 app.use(`${API_PREFIX}/test-plans`, testPlanRoutes);
 app.use(`${API_PREFIX}/executions`, executionRoutes);
 app.use(`${API_PREFIX}/requirements`, requirementRoutes);
+app.use(`${API_PREFIX}/milestones`, milestoneRoutes);
 app.use(`${API_PREFIX}/reports`, reportRoutes);
 app.use(`${API_PREFIX}/admin`, adminRoutes);
 app.use(`${API_PREFIX}/dashboard`, dashboardRoutes);

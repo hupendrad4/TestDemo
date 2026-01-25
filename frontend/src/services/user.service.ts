@@ -22,6 +22,10 @@ class UserService {
   async resetUserPassword(userId: string, password: string): Promise<any> {
     return apiService.patch(`/users/${userId}/reset-password`, { password });
   }
+  
+  async getProjectUsers(projectId: string): Promise<any> {
+    return apiService.get(`/projects/${projectId}/members`);
+  }
 }
 
 export default new UserService();

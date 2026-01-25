@@ -13,6 +13,9 @@ import Projects from './pages/Projects';
 import TestCases from './pages/TestCases';
 import TestPlansPage from './pages/TestPlans/TestPlansPage';
 import Executions from './pages/Executions';
+import ExecuteTest from './pages/Executions/ExecuteTest';
+import AssignExecution from './pages/Executions/AssignExecution';
+import MyAssignedTests from './pages/Executions/MyAssignedTests';
 import ExecutionWorkbench from './pages/Executions/ExecutionWorkbench';
 import Requirements from './pages/Requirements/RequirementsPage';
 import Defects from './pages/Defects/DefectsPage';
@@ -22,6 +25,7 @@ import UsersPage from './pages/Users';
 import AdminMetrics from './pages/Admin/Metrics';
 import AuditLogs from './pages/Admin/AuditLogs';
 import Watchlist from './pages/Watchlist';
+import Milestones from './pages/Executions/Milestones';
 
 const App: React.FC = () => {
   return (
@@ -73,6 +77,10 @@ const App: React.FC = () => {
             <Route path="test-cases" element={<TestCases />} />
             <Route path="test-plans" element={<TestPlansPage />} />
             <Route path="executions" element={<Executions />} />
+            <Route path="executions/execute" element={<ExecuteTest />} />
+            <Route path="executions/assign" element={<AssignExecution />} />
+            <Route path="executions/my-tests" element={<MyAssignedTests />} />
+            <Route path="executions/milestones" element={<Milestones />} />
             <Route path="executions/:executionId" element={<ExecutionWorkbench />} />
             <Route path="requirements" element={<Requirements />} />
             <Route path="defects" element={<Defects />} />

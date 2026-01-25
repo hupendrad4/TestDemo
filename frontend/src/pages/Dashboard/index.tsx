@@ -102,12 +102,13 @@ const Dashboard: React.FC = () => {
       const testCases = data.testCasesSummary || {};
       const executions = data.executionSummary || {};
       const coverage = data.requirementCoverage || {};
+      const defects = data.defectSummary || {};
       const recentRuns = data.recentTestRuns || [];
       
       setStats({
         totalTestCases: testCases.total || 0,
         totalExecutions: executions.total || 0,
-        openDefects: 0, // Will be populated when defect stats are available
+        openDefects: defects.open || 0,
         passedTests: executions.passed || 0,
         failedTests: executions.failed || 0,
         blockedTests: executions.blocked || 0,

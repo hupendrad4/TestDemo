@@ -303,3 +303,317 @@ export const getExecutionStats = async (
     next(error);
   }
 };
+
+// @desc    Get project executions
+// @route   GET /api/executions/projects/:projectId
+// @access  Private
+export const getProjectExecutions = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const projectId = req.params.projectId;
+    const { status, executedById } = req.query;
+
+    const executions = await prisma.testExecution.findMany({
+      where: {
+        testCase: {
+          testSuite: {
+            testProjectId: projectId,
+          },
+        },
+        ...(status && { status: status as ExecutionStatus }),
+        ...(executedById && { executedById: executedById as string }),
+      },
+      include: {
+        testCase: {
+          select: {
+            id: true,
+            externalId: true,
+            name: true,
+            priority: true,
+          },
+        },
+        executedBy: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        environment: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+      orderBy: { executedAt: 'desc' },
+      take: 100,
+    });
+
+    res.status(200).json({
+      success: true,
+      count: executions.length,
+      data: executions,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get my executions
+// @route   GET /api/executions/projects/:projectId/my-executions
+// @access  Private
+export const getMyExecutions = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const projectId = req.params.projectId;
+
+    const executions = await prisma.testExecution.findMany({
+      where: {
+        executedById: req.user!.id,
+        testCase: {
+          testSuite: {
+            testProjectId: projectId,
+          },
+        },
+      },
+      include: {
+        testCase: {
+          select: {
+            id: true,
+            externalId: true,
+            name: true,
+            priority: true,
+          },
+        },
+      },
+      orderBy: { executedAt: 'desc' },
+      take: 50,
+    });
+
+    res.status(200).json({
+      success: true,
+      count: executions.length,
+      data: executions,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get execution by ID
+// @route   GET /api/executions/:id
+// @access  Private
+export const getExecutionById = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const execution = await prisma.testExecution.findUnique({
+      where: { id: req.params.id },
+      include: {
+        testCase: {
+          include: {
+            steps: {
+              orderBy: { stepNumber: 'asc' },
+            },
+          },
+        },
+        executedBy: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        stepExecutions: {
+          include: {
+            testStep: true,
+          },
+          orderBy: { executedAt: 'asc' },
+        },
+      },
+    });
+
+    if (!execution) {
+      return res.status(404).json({
+        success: false,
+        error: 'Execution not found',
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: execution,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Assign execution to user
+// @route   PUT /api/executions/:id/assign
+// @access  Private
+export const assignExecution = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { userId } = req.body;
+
+    const execution = await prisma.testExecution.update({
+      where: { id: req.params.id },
+      data: { executedById: userId },
+      include: {
+        testCase: {
+          select: {
+            id: true,
+            externalId: true,
+            name: true,
+          },
+        },
+        executedBy: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      data: execution,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Bulk assign executions
+// @route   POST /api/executions/bulk-assign
+// @access  Private
+export const bulkAssignExecutions = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { testCaseIds, userId, buildId } = req.body;
+
+    if (!testCaseIds || !Array.isArray(testCaseIds) || testCaseIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'testCaseIds array is required',
+      });
+    }
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        error: 'userId is required',
+      });
+    }
+
+    // Create executions if they don't exist
+    const executions = await Promise.all(
+      testCaseIds.map(async (testCaseId) => {
+        // Try to find existing execution
+        let execution = await prisma.testExecution.findFirst({
+          where: {
+            testCaseId,
+            ...(buildId && { buildId }),
+          },
+        });
+
+        if (!execution) {
+          // Create new execution
+          execution = await prisma.testExecution.create({
+            data: {
+              testCaseId,
+              testCycleId: '', // Default empty, will need proper test cycle
+              buildId: buildId || '',
+              executedById: userId,
+              status: 'NOT_RUN',
+            },
+          });
+        } else {
+          // Update existing execution
+          execution = await prisma.testExecution.update({
+            where: { id: execution.id },
+            data: { executedById: userId },
+          });
+        }
+
+        return execution;
+      })
+    );
+
+    res.status(200).json({
+      success: true,
+      count: executions.length,
+      data: executions,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Update execution
+// @route   PUT /api/executions/executions/:id
+// @access  Private
+export const updateExecution = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { status, notes, executionTime } = req.body;
+
+    const execution = await prisma.testExecution.update({
+      where: { id: req.params.id },
+      data: {
+        ...(status && { status: status as ExecutionStatus }),
+        ...(notes !== undefined && { notes }),
+        ...(executionTime !== undefined && { executionTime }),
+        executedAt: new Date(),
+      },
+      include: {
+        testCase: {
+          select: {
+            id: true,
+            externalId: true,
+            name: true,
+          },
+        },
+        executedBy: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      data: execution,
+    });
+  } catch (error) {
+    next(error);
+  }
+};

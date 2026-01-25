@@ -31,6 +31,7 @@ import {
   CircularProgress,
   Card,
   CardContent,
+  Autocomplete,
 } from '@mui/material';
 import {
   Add,
@@ -42,12 +43,15 @@ import {
   StarBorder,
   Refresh,
   BugReport,
+  Link as LinkIcon,
 } from '@mui/icons-material';
 import { RootState } from '../../store';
 import defectService, { Defect } from '../../services/defect.service';
 import watchlistService from '../../services/watchlist.service';
 import SavedViewsManager from '../../components/SavedViewsManager';
 import { formatDistanceToNow } from 'date-fns';
+import jiraService, { JiraIssue } from '../../services/jira.service';
+import userService from '../../services/user.service';
 
 const DefectsPage: React.FC = () => {
   const location = useLocation();
@@ -61,7 +65,7 @@ const DefectsPage: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState<string>('');
   const [filterSeverity, setFilterSeverity] = useState<string>('');
   const [filterPriority, setFilterPriority] = useState<string>('');
-  const [stats, setStats] = useState({ total: 0, new: 0, open: 0, inProgress: 0, resolved: 0, closed: 0, bySeverity: {} });
+  const [stats, setStats] = useState({ total: 0, open: 0, inProgress: 0, resolved: 0, closed: 0, bySeverity: {} });
   
   // Dialog states
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -79,7 +83,18 @@ const DefectsPage: React.FC = () => {
     stepsToReproduce: '',
     expectedResult: '',
     actualResult: '',
+    assignedToId: '',
   });
+
+  // Jira linking state
+  const [jiraIssues, setJiraIssues] = useState<JiraIssue[]>([]);
+  const [selectedJiraIssue, setSelectedJiraIssue] = useState<JiraIssue | null>(null);
+  const [jiraSearchQuery, setJiraSearchQuery] = useState('');
+  const [jiraSearchLoading, setJiraSearchLoading] = useState(false);
+
+  // Project users for assignment
+  const [projectUsers, setProjectUsers] = useState<any[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
 
   useEffect(() => {
     if (currentProject?.id) {
@@ -127,7 +142,14 @@ const DefectsPage: React.FC = () => {
     if (!currentProject?.id) return;
     try {
       const data = await defectService.getDefectStats(currentProject.id);
-      setStats(data);
+      setStats({
+        total: data.total,
+        open: data.open,
+        inProgress: data.inProgress,
+        resolved: data.resolved,
+        closed: data.closed,
+        bySeverity: data.bySeverity,
+      });
     } catch (error) {
       console.error('Failed to load stats', error);
     }
@@ -153,10 +175,13 @@ const DefectsPage: React.FC = () => {
   const handleCreateDefect = async () => {
     if (!currentProject?.id || !formData.title.trim()) return;
     try {
+      // Create the defect with jiraIssueKey if selected
       await defectService.createDefect({
         ...formData,
         projectId: currentProject.id,
+        jiraIssueKey: selectedJiraIssue?.key || undefined,
       });
+
       setCreateDialogOpen(false);
       resetForm();
       loadData();
@@ -169,7 +194,11 @@ const DefectsPage: React.FC = () => {
   const handleEditDefect = async () => {
     if (!selectedDefect) return;
     try {
-      await defectService.updateDefect(selectedDefect.id, formData);
+      await defectService.updateDefect(selectedDefect.id, {
+        ...formData,
+        jiraIssueKey: selectedJiraIssue?.key || undefined,
+      });
+
       setEditDialogOpen(false);
       setSelectedDefect(null);
       resetForm();
@@ -223,8 +252,9 @@ const DefectsPage: React.FC = () => {
       description: defect.description || '',
       severity: defect.severity,
       priority: defect.priority,
-      type: defect.type,
+      type: (defect.type || 'BUG') as string,
       environment: defect.environment || '',
+      assignedToId: defect.assignedTo?.id || '',
       stepsToReproduce: defect.stepsToReproduce || '',
       expectedResult: defect.expectedResult || '',
       actualResult: defect.actualResult || '',
@@ -243,8 +273,64 @@ const DefectsPage: React.FC = () => {
       stepsToReproduce: '',
       expectedResult: '',
       actualResult: '',
+      assignedToId: '',
     });
+    setSelectedJiraIssue(null);
+    setJiraSearchQuery('');
+    setJiraIssues([]);
   };
+
+  const loadProjectUsers = async () => {
+    if (!currentProject?.id) return;
+    setUsersLoading(true);
+    try {
+      const response = await userService.getProjectUsers(currentProject.id);
+      const users = response.data || response || [];
+      setProjectUsers(users);
+    } catch (error) {
+      console.error('Failed to load project users', error);
+      setProjectUsers([]);
+    } finally {
+      setUsersLoading(false);
+    }
+  };
+
+  // Load users when dialog opens
+  useEffect(() => {
+    if ((createDialogOpen || editDialogOpen) && currentProject?.id) {
+      loadProjectUsers();
+    }
+  }, [createDialogOpen, editDialogOpen, currentProject?.id]);
+
+  const searchJiraIssues = async (query: string) => {
+    if (!currentProject?.id || !query || query.length < 2) {
+      setJiraIssues([]);
+      return;
+    }
+    
+    setJiraSearchLoading(true);
+    try {
+      // Search with JQL for issues containing the query in summary or key
+      const jql = `summary ~ "${query}*" OR key = "${query}" ORDER BY updated DESC`;
+      const response = await jiraService.searchIssues(currentProject.id, jql);
+      setJiraIssues(response || []);
+    } catch (error) {
+      console.error('Failed to search Jira issues', error);
+      setJiraIssues([]);
+    } finally {
+      setJiraSearchLoading(false);
+    }
+  };
+
+  // Debounced Jira search
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (jiraSearchQuery) {
+        searchJiraIssues(jiraSearchQuery);
+      }
+    }, 500);
+    return () => clearTimeout(timeoutId);
+  }, [jiraSearchQuery]);
 
   const handleSelectAll = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.checked) {
@@ -327,15 +413,7 @@ const DefectsPage: React.FC = () => {
         <Grid item xs={6} sm={4} md={2}>
           <Card>
             <CardContent>
-              <Typography variant="h4" color="error">{stats.new}</Typography>
-              <Typography variant="body2" color="textSecondary">New</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={6} sm={4} md={2}>
-          <Card>
-            <CardContent>
-              <Typography variant="h4" color="warning.main">{stats.open}</Typography>
+              <Typography variant="h4" color="error">{stats.open}</Typography>
               <Typography variant="body2" color="textSecondary">Open</Typography>
             </CardContent>
           </Card>
@@ -343,7 +421,7 @@ const DefectsPage: React.FC = () => {
         <Grid item xs={6} sm={4} md={2}>
           <Card>
             <CardContent>
-              <Typography variant="h4" color="primary">{stats.inProgress}</Typography>
+              <Typography variant="h4" color="warning.main">{stats.inProgress}</Typography>
               <Typography variant="body2" color="textSecondary">In Progress</Typography>
             </CardContent>
           </Card>
@@ -383,12 +461,12 @@ const DefectsPage: React.FC = () => {
             <InputLabel>Status</InputLabel>
             <Select value={filterStatus} label="Status" onChange={e => setFilterStatus(e.target.value)}>
               <MenuItem value="">All</MenuItem>
-              <MenuItem value="NEW">New</MenuItem>
               <MenuItem value="OPEN">Open</MenuItem>
               <MenuItem value="IN_PROGRESS">In Progress</MenuItem>
               <MenuItem value="RESOLVED">Resolved</MenuItem>
               <MenuItem value="CLOSED">Closed</MenuItem>
-              <MenuItem value="REOPENED">Reopened</MenuItem>
+              <MenuItem value="REOPEN">Reopened</MenuItem>
+              <MenuItem value="REJECTED">Rejected</MenuItem>
             </Select>
           </FormControl>
           <FormControl size="small" sx={{ minWidth: 120 }}>
@@ -491,7 +569,7 @@ const DefectsPage: React.FC = () => {
                       <TableCell>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                           <BugReport fontSize="small" />
-                          {defect.defectId}
+                          {defect.externalId || defect.id.substring(0, 8)}
                         </Box>
                       </TableCell>
                       <TableCell>{defect.title}</TableCell>
@@ -508,18 +586,18 @@ const DefectsPage: React.FC = () => {
                             onChange={e => handleStatusChange(defect.id, e.target.value)}
                             displayEmpty
                           >
-                            <MenuItem value="NEW">New</MenuItem>
                             <MenuItem value="OPEN">Open</MenuItem>
                             <MenuItem value="IN_PROGRESS">In Progress</MenuItem>
                             <MenuItem value="RESOLVED">Resolved</MenuItem>
                             <MenuItem value="CLOSED">Closed</MenuItem>
-                            <MenuItem value="REOPENED">Reopened</MenuItem>
+                            <MenuItem value="REOPEN">Reopened</MenuItem>
+                            <MenuItem value="REJECTED">Rejected</MenuItem>
                           </Select>
                         </FormControl>
                       </TableCell>
                       <TableCell>
                         {defect.assignedTo
-                          ? `${defect.assignedTo.firstName} ${defect.assignedTo.lastName}`
+                          ? defect.assignedTo.username || defect.assignedTo.email
                           : '-'}
                       </TableCell>
                       <TableCell>
@@ -605,6 +683,25 @@ const DefectsPage: React.FC = () => {
               </FormControl>
             </Grid>
           </Grid>
+          
+          {/* Assigned To Field */}
+          <FormControl fullWidth margin="dense">
+            <InputLabel>Assigned To</InputLabel>
+            <Select
+              value={formData.assignedToId}
+              label="Assigned To"
+              onChange={e => setFormData({ ...formData, assignedToId: e.target.value })}
+              disabled={usersLoading}
+            >
+              <MenuItem value="">Unassigned</MenuItem>
+              {projectUsers.map((member) => (
+                <MenuItem key={member.user?.id || member.id} value={member.user?.id || member.id}>
+                  {member.user?.username || member.user?.email || member.username || member.email}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          
           <TextField
             margin="dense"
             label="Environment"
@@ -639,6 +736,71 @@ const DefectsPage: React.FC = () => {
             value={formData.actualResult}
             onChange={e => setFormData({ ...formData, actualResult: e.target.value })}
           />
+
+          {/* Jira Integration Section */}
+          <Box sx={{ mt: 3, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+            <Typography variant="subtitle2" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <LinkIcon fontSize="small" />
+              Link to Jira Issue
+            </Typography>
+            
+            <Autocomplete
+              options={jiraIssues}
+              value={selectedJiraIssue}
+              onChange={(_, newValue) => setSelectedJiraIssue(newValue)}
+              inputValue={jiraSearchQuery}
+              onInputChange={(_, newInputValue) => setJiraSearchQuery(newInputValue)}
+              getOptionLabel={(option) => `${option.key} - ${option.fields.summary}`}
+              loading={jiraSearchLoading}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Jira Issue"
+                  placeholder="Search by issue key or summary..."
+                  helperText="Link this defect to a Jira story or issue for tracking"
+                  InputProps={{
+                    ...params.InputProps,
+                    endAdornment: (
+                      <>
+                        {jiraSearchLoading ? <CircularProgress size={20} /> : null}
+                        {params.InputProps.endAdornment}
+                      </>
+                    ),
+                  }}
+                />
+              )}
+              renderOption={(props, option) => (
+                <li {...props} key={option.id}>
+                  <Box sx={{ width: '100%' }}>
+                    <Typography variant="body2" fontWeight="medium">
+                      {option.key}
+                    </Typography>
+                    <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mb: 0.5 }}>
+                      {option.fields.summary}
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                      <Chip 
+                        label={option.fields.issuetype.name} 
+                        size="small" 
+                        sx={{ height: 20, fontSize: '0.7rem' }}
+                      />
+                      <Chip 
+                        label={option.fields.status.name} 
+                        size="small" 
+                        color="primary"
+                        sx={{ height: 20, fontSize: '0.7rem' }}
+                      />
+                    </Box>
+                  </Box>
+                </li>
+              )}
+              noOptionsText={
+                jiraSearchQuery.length < 2 
+                  ? "Type at least 2 characters to search Jira issues"
+                  : "No Jira issues found. Make sure Jira integration is configured."
+              }
+            />
+          </Box>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => {

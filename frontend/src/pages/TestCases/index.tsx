@@ -58,6 +58,7 @@ interface TestCase {
   executionType: string;
   testProjectId: string;
   estimatedTime?: number;
+  assignedToId?: string;
   _count?: {
     steps: number;
     executions: number;
@@ -73,6 +74,8 @@ const TestCases: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterFormat, setFilterFormat] = useState<'ALL' | 'TRADITIONAL' | 'BDD'>('ALL');
+  const [showAssignedToMe, setShowAssignedToMe] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [selectedTestCase, setSelectedTestCase] = useState<string | null>(null);
   
@@ -106,6 +109,14 @@ const TestCases: React.FC = () => {
 
       const response = await testCaseService.getTestCases(currentProject.id);
       const cases = Array.isArray(response) ? response : ((response as any)?.data || []);
+      
+      // Get current user ID from localStorage
+      const userStr = localStorage.getItem('user');
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        setCurrentUserId(user.id);
+      }
+      
       setTestCases(cases);
       
       // Calculate stats
@@ -139,8 +150,13 @@ const TestCases: React.FC = () => {
       filtered = filtered.filter((tc) => tc.format === filterFormat);
     }
 
+    // Assigned to Me filter
+    if (showAssignedToMe && currentUserId) {
+      filtered = filtered.filter((tc: any) => tc.assignedToId === currentUserId);
+    }
+
     setFilteredTestCases(filtered);
-  }, [testCases, searchTerm, filterFormat]);
+  }, [testCases, searchTerm, filterFormat, showAssignedToMe, currentUserId]);
 
   useEffect(() => {
     if (currentProject?.id) {
@@ -404,6 +420,13 @@ const TestCases: React.FC = () => {
                 color={filterFormat === 'BDD' ? 'primary' : 'default'}
                 onClick={() => setFilterFormat('BDD')}
                 sx={{ cursor: 'pointer' }}
+              />
+              <Chip
+                label="Assigned to Me"
+                color={showAssignedToMe ? 'primary' : 'default'}
+                onClick={() => setShowAssignedToMe(!showAssignedToMe)}
+                sx={{ cursor: 'pointer' }}
+                variant={showAssignedToMe ? 'filled' : 'outlined'}
               />
             </Box>
           </Grid>

@@ -83,6 +83,7 @@ model TestProject {
   apiKeys            ApiKey[]
   webhooks           WebhookSubscription[]
   jiraIntegration    JiraIntegration?
+  defects            Defect[]          @relation("ProjectDefects")
 
   @@map("test_projects")
 }
@@ -449,6 +450,7 @@ model Defect {
   description       String        @db.Text
   reportedById      String
   assignedToId      String?
+  testProjectId     String
   status            DefectStatus  @default(OPEN)
   severity          Severity      @default(MEDIUM)
   priority          Priority      @default(MEDIUM)
@@ -461,6 +463,7 @@ model Defect {
   resolvedAt        DateTime?
 
   // Relations
+  testProject       TestProject       @relation("ProjectDefects", fields: [testProjectId], references: [id], onDelete: Cascade)
   reportedBy        User              @relation("DefectReporter", fields: [reportedById], references: [id])
   assignedTo        User?             @relation("DefectAssignee", fields: [assignedToId], references: [id])
   executions        DefectExecution[]

@@ -15,7 +15,7 @@ export const getDefects = async (
     const projectId = req.params.projectId;
     const { status, severity, priority } = req.query;
 
-    const where: any = { projectId };
+    const where: any = { testProjectId: projectId };
     if (status) {
       where.status = status;
     }
@@ -126,9 +126,12 @@ export const createDefect = async (
       description,
       stepsToReproduce,
       expectedBehavior,
+      expectedResult,
       actualBehavior,
+      actualResult,
       severity,
       priority,
+      environment,
       assignedToId,
       testExecutionId,
       jiraIssueKey,
@@ -156,11 +159,13 @@ export const createDefect = async (
         title,
         description,
         stepsToReproduce,
-        expectedBehavior,
-        actualBehavior,
+        expectedBehavior: expectedBehavior || expectedResult,
+        actualBehavior: actualBehavior || actualResult,
+        environment,
         severity: severity || 'MEDIUM',
         priority: priority || 'MEDIUM',
         status: 'OPEN',
+        testProjectId: projectId,
         reportedById: req.user!.id,
         assignedToId: assignedToId || null,
         executions: testExecutionId
@@ -404,30 +409,22 @@ export const getDefectStats = async (
     const projectId = req.params.projectId;
 
     const defects = await prisma.defect.findMany({
-      where: { projectId },
+      where: { testProjectId: projectId },
       select: { status: true, severity: true, priority: true },
     });
 
     const stats = {
       total: defects.length,
-      byStatus: {
-        open: defects.filter((d) => d.status === 'OPEN').length,
-        inProgress: defects.filter((d) => d.status === 'IN_PROGRESS').length,
-        resolved: defects.filter((d) => d.status === 'RESOLVED').length,
-        closed: defects.filter((d) => d.status === 'CLOSED').length,
-        reopened: defects.filter((d) => d.status === 'REOPENED').length,
-      },
+      open: defects.filter((d) => d.status === 'OPEN').length,
+      inProgress: defects.filter((d) => d.status === 'IN_PROGRESS').length,
+      resolved: defects.filter((d) => d.status === 'RESOLVED').length,
+      closed: defects.filter((d) => d.status === 'CLOSED').length,
       bySeverity: {
         critical: defects.filter((d) => d.severity === 'CRITICAL').length,
         high: defects.filter((d) => d.severity === 'HIGH').length,
         medium: defects.filter((d) => d.severity === 'MEDIUM').length,
         low: defects.filter((d) => d.severity === 'LOW').length,
-      },
-      byPriority: {
-        critical: defects.filter((d) => d.priority === 'CRITICAL').length,
-        high: defects.filter((d) => d.priority === 'HIGH').length,
-        medium: defects.filter((d) => d.priority === 'MEDIUM').length,
-        low: defects.filter((d) => d.priority === 'LOW').length,
+        blocker: defects.filter((d) => d.severity === 'BLOCKER').length,
       },
     };
 
